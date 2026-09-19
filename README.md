@@ -26,7 +26,8 @@ The current work focuses on **Active Directory, Windows endpoint telemetry, Wazu
               ┌─────▼─────┐               ┌─────▼─────┐
               │   DC      │               │ CLIENT1   │
               │  Windows  │               │  Windows  │
-              │    AD     │               │ Endpoint  │
+              │    AD     │               │ Endpoint  |
+              |172.16.0.60│               |172.16.0.61│
               └─────┬─────┘               └─────┬─────┘
                     │                             │
                  Sysmon                        Sysmon
