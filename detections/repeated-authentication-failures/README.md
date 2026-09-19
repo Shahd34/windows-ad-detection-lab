@@ -4,25 +4,12 @@
 
 This detection was developed to identify repeated Windows authentication failures that may indicate password-guessing or brute-force activity.
 
-The detection process followed the following workflow:
-
-```text
-Detect
-  ↓
-Investigate
-  ↓
-Classify
-  ↓
-Identify False Positive
-  ↓
-Tune
-```
 
 ---
 
 ## 1. Initial Detection
 
-During the laboratory test, multiple Windows authentication failures were generated on **CLIENT-22**.
+During the laboratory test, multiple Windows authentication failures were generated on **CLIENT1**.
 
 The activity triggered custom Wazuh **Rule 100100** and was initially treated as a potential brute-force event because the configured authentication-failure threshold was reached.
 
@@ -54,19 +41,16 @@ The rule was based on Wazuh **Rule 60122**, which identifies the underlying Wind
 
 
 Rule Explanation
-This composite rule (ID **100100**) correlates repeated Windows authentication failures to identify potential brute-force activity against a Windows account. It leverages event correlation, temporal thresholds, and target-account tracking to detect repeated authentication attempts while reducing unrelated events from being grouped together.
-
-
 
 * **Rule Dependency (`if_matched_sid`):** The engine evaluates this custom rule based on events that have already triggered the base Wazuh rule **60122**, which identifies Windows authentication-failure events associated with **Event ID 4625**.
 
-* **Threshold Mechanics (`frequency="5" timeframe="60"`):** The correlation logic requires a minimum of **five matching failed authentication events within a 60-second window**. This temporal threshold helps identify repeated login attempts that may indicate automated or brute-force activity.
+* **Threshold Mechanics (`frequency="5" timeframe="60"`):** The correlation logic requires a minimum of **five matching failed authentication events within a 60-second window**.
 
 * **Target Account Tracking (`same_field`):** The rule requires the repeated events to contain the same value for `win.eventdata.targetUserName`. This ensures that failed authentication attempts against different accounts are not combined into a single correlation threshold.
 
 * **Severity Level 10:** The rule generates a **Wazuh level 10 alert**. This represents the severity assigned to the detection and does not, by itself, confirm that a malicious attack occurred.
 
-* **MITRE ATT&CK Mapping (`T1110`):** The detection is mapped to **T1110 — Brute Force**, providing SOC analysts with contextual information about the behavior the rule is designed to detect. The mapping does not independently establish that a brute-force attack occurred.
+* **MITRE ATT&CK Mapping (`T1110`):** The detection is mapped to **T1110 — Brute Force**.
 
 
 
@@ -79,7 +63,6 @@ The alert was investigated using the event details available in Wazuh.
 The investigation focused on:
 
 * Authentication time
-* Source address
 * Target account
 * Workstation
 * Logon Type
@@ -106,7 +89,6 @@ Workstation            = CLIENT1
 Target account        = test1
 ```
 
-The `127.0.0.1` address is the loopback address, indicating that Windows recorded the authentication source as the local machine.
 
 **[IMAGE 3 — Expanded Wazuh Event 4625]**
 
@@ -118,30 +100,24 @@ The `127.0.0.1` address is the loopback address, indicating that Windows recorde
 
 The activity was classified as a **benign / false positive**.
 
-The failed logins were intentionally generated in the laboratory to simulate incorrect password attempts.
-
 Several factors supported this classification:
 
 * The activity occurred during normal working hours.
 * Windows recorded the source address as `127.0.0.1`.
 * The event used **Logon Type 2 (Interactive)**.
-* The activity was part of a controlled laboratory test.
 
-The original rule detected the repeated authentication failures but did not distinguish between local interactive authentication and network or remote authentication.
 
-As a result, the rule generated an alert for activity outside the intended scope of the detection.
+The activity was classified as **benign / a false positive** because the authentication failures were associated with **Logon Type 2 (Interactive)** and the Windows event recorded the source address as `127.0.0.1`. This indicates that the login attempts were made locally on CLIENT1, which is consistent with a user trying to log in directly to the machine.
+
+However, Logon Type 2 does not automatically mean that the activity was caused by an employee. An attacker who already has access to the machine could also generate interactive authentication failures.
+
+For this reason, the detection was tuned to focus on **Logon Type 3 (Network)** and **Logon Type 10 (RemoteInteractive)**. These logon types are more relevant to the type of activity the detection is intended to identify because they involve network or remote authentication. Such authentication attempts can be associated with activities such as password guessing, password spraying, or lateral movement.
+
+The tuning does not mean that Logon Types 3 and 10 are always malicious. Legitimate users, administrators, and services can also generate these logon types. Instead, the tuning reduces false positives from local interactive login attempts and makes the detection more focused on network and remote authentication activity.
 
 
 
 ## 5. Detection Tuning
-
-### 5.1 Why Tune the Detection?
-
-The original rule detected repeated authentication failures but also included local interactive logins.
-
-To reduce false positives, the rule was tuned to focus on **network and remote-interactive authentication**.
-
-### 5.2 Tuning Decision
 
 The rule was configured to accept **Logon Type 3 or 10**:
 
@@ -166,12 +142,8 @@ The final rule is:
 
 ### 6.2 Authentication Filter
 
-The following condition limits the rule to Logon Types 3 and 10:
-
 ```xml
 <field name="win.eventdata.logonType">^(3|10)$</field>
 ```
 
 The regular expression matches `3` or `10` and excludes `2`.
-
-This prevents local interactive authentication failures from triggering the tuned detection.
