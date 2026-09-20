@@ -1,6 +1,5 @@
-# windows-ad-detection-lab
 
-# Windows AD Security & Detection Engineering Lab
+# Security Monitoring & Detection Engineering Lab
 
 ## Project Overview
 
